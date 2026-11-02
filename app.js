@@ -139,9 +139,19 @@ function load() {
   return defaults();
 }
 let S = load();
+let syncQueued = 0;
+function queueSync(delay = 1200) {
+  if (typeof signedIn !== 'function' || !signedIn()) return;
+  clearTimeout(syncQueued);
+  syncQueued = setTimeout(() => {
+    if (typeof syncBusy !== 'undefined' && syncBusy) { queueSync(1500); return; }
+    if (pendingCount() > 0) syncNow(true);
+  }, delay);
+}
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch (e) { toast('Could not save — storage is full or blocked'); }
+  if (typeof pendingCount === 'function' && pendingCount() > 0) queueSync();
 }
 
 const catOf = id => S.categories.find(c => c.id === id) || { id: 'other', name: 'Other', color: '#9a9b92', icon: 'other' };
