@@ -176,7 +176,7 @@ function vOverview() {
   let html = '';
 
   if (isIOS && !standalone() && !localStorage.getItem('thuchi.hint')) {
-    html += `<div class="hint">Install: tap <b>Share</b> → <b>Add to Home Screen</b>, then open Thu Chi from the new icon and enter your data there.<button data-act="hint-x" aria-label="Dismiss">✕</button></div>`;
+    html += `<div class="hint">Install: tap <b>Share</b> → <b>Add to Home Screen</b>, then open Olympus Finance from the new icon and enter your data there.<button data-act="hint-x" aria-label="Dismiss">✕</button></div>`;
   }
 
   html += `<div class="card hero" id="hero">
@@ -733,7 +733,7 @@ function onImportFile(e) {
   fr.onload = () => {
     let j;
     try { j = JSON.parse(String(fr.result).replace(/^\ufeff/, '')); } catch (_) { toast('That file is not valid JSON'); return; }
-    if (!j || !Array.isArray(j.expenses)) { toast('Not a Thu Chi backup'); return; }
+    if (!j || !Array.isArray(j.expenses)) { toast('Not an Olympus Finance backup'); return; }
     const inc = migrate(j);
     openSheet(`<div class="sheet-t">Import backup</div>
       <p style="text-align:center;color:var(--muted);margin:0 0 6px">Found <b style="color:var(--text)">${inc.expenses.length}</b> expenses and ${inc.categories.length} categories.<br>You currently have ${live(S.expenses).length} expenses.</p>

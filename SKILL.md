@@ -135,7 +135,7 @@ The user runs this on an iPhone. iOS PWAs have quirks; handle all of these.
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Thu Chi">
+<meta name="apple-mobile-web-app-title" content="Olympus Finance">
 <meta name="theme-color" content="#1f2220">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"> <!-- 180x180 -->
 <meta name="color-scheme" content="dark">
