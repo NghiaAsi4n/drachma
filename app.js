@@ -416,6 +416,7 @@ function render(keep) {
   $app.classList.toggle('no-top', r === 'history' || r === 'settings' || r === 'analytics');
   $app.classList.toggle('no-fab', r === 'settings' || r === 'analytics');
   document.querySelectorAll('#tabbar a').forEach(a => a.classList.toggle('on', a.dataset.tab === r));
+  moveInd();
   $view.innerHTML = V[r]();
   if (r === 'history') {
     const q = $('#q');
@@ -428,9 +429,19 @@ function render(keep) {
     document.querySelectorAll('.seg').forEach(b => b.onclick = () => { ui.range = +b.dataset.n; render(true); });
   }
   $view.scrollTop = sc;
+  if (!keep) { $view.classList.remove('view-in'); void $view.offsetWidth; $view.classList.add('view-in'); }
   updateCompact();
   setTitle();
 }
+function moveInd() {
+  const ind = $('#tab-ind'), act = document.querySelector('#tabbar a.on');
+  if (!ind || !act) return;
+  const br = $('#tabbar').getBoundingClientRect(), ar = act.getBoundingClientRect();
+  ind.style.opacity = '1';
+  ind.style.width = ar.width + 'px';
+  ind.style.transform = `translateX(${ar.left - br.left}px)`;
+}
+window.addEventListener('resize', moveInd);
 window.addEventListener('hashchange', () => render(false));
 $view.addEventListener('scroll', () => {
   if (ui.route !== 'overview') return;
@@ -462,15 +473,25 @@ $sheet.addEventListener('focusin', e => {
   if (!/INPUT|TEXTAREA/.test(e.target.tagName)) return;
   setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {} }, 320);
 });
+let sheetToken = 0;
 function openSheet(html) {
+  sheetToken++;
+  $sheet.classList.remove('closing'); $scrim.classList.remove('closing');
   $sheet.innerHTML = '<div class="grab"></div>' + html;
   $scrim.hidden = false; $sheet.hidden = false; $sheet.scrollTop = 0;
   fitSheet();
 }
 function closeSheet() {
-  $sheet.hidden = true; $scrim.hidden = true; $sheet.innerHTML = '';
-  $sheet.style.bottom = ''; $sheet.style.maxHeight = '';
+  if ($sheet.hidden) return;
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const t = ++sheetToken;
+  $sheet.classList.add('closing'); $scrim.classList.add('closing');
+  setTimeout(() => {
+    if (t !== sheetToken) return;
+    $sheet.classList.remove('closing'); $scrim.classList.remove('closing');
+    $sheet.hidden = true; $scrim.hidden = true; $sheet.innerHTML = '';
+    $sheet.style.bottom = ''; $sheet.style.maxHeight = '';
+  }, 230);
 }
 $scrim.addEventListener('click', closeSheet);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$sheet.hidden) closeSheet(); });
@@ -482,7 +503,14 @@ function pickSheet(title, opts, current, onPick) {
 }
 
 function liveAmt(inp, prev) {
-  const fit = () => { if (inp.closest('.amt-card')) inp.style.width = Math.max(1, inp.value.length) + 'ch'; };
+  const fit = () => {
+    if (!inp.closest('.amt-card')) return;
+    inp.style.width = Math.max(1, inp.value.length) + 'ch';
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      inp.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.035)' }, { transform: 'scale(1)' }],
+        { duration: 190, easing: 'cubic-bezier(.22,.61,.36,1)' });
+    }
+  };
   fit();
   inp.addEventListener('input', () => {
     const v = inp.value;
