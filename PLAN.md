@@ -149,11 +149,11 @@ Link cài dự kiến: https://drachma.pages.dev/
 
 Cloudflare Pages hỗ trợ repo private ở gói free, không cần public repo.
 
-- [ ] Tạo `.gitignore` gồm `.DS_Store`, `Thumbs.db`, `*.log`
-- [ ] `git init` rồi `git branch -M main`
-- [ ] `git add .` (gồm cả `PLAN.md`), commit đầu tiên với message tiếng Anh
-- [ ] `git remote add origin https://github.com/NghiaAsi4n/drachma.git`
-- [ ] Push `main` — chỉ làm sau khi người dùng xác nhận riêng
+- [x] Tạo `.gitignore` gồm `.DS_Store`, `Thumbs.db`, `*.log`
+- [x] `git init` rồi `git branch -M main`
+- [x] `git add .` (gồm cả `PLAN.md`), commit đầu tiên với message tiếng Anh
+- [x] `git remote add origin https://github.com/NghiaAsi4n/drachma.git`
+- [x] Push `main` — commit `91f39e8`, remote `main` đã trỏ cùng commit
 - [ ] Cài Cloudflare GitHub App, cấp quyền đọc repo `NghiaAsi4n/drachma`
 - [ ] Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git → chọn `NghiaAsi4n/drachma`
 - [ ] Build settings: Framework preset `None`, Build command để trống, Build output directory `/`
@@ -176,7 +176,7 @@ Cloudflare Pages hỗ trợ repo private ở gói free, không cần public repo
 - Mỗi lần sửa code: bump `CACHE_VERSION` trong `sw.js`, commit, push; iOS có thể phải đóng app khỏi app switcher rồi mở lại mới nhận bản mới.
 - `PLAN.md` được commit để đồng bộ nhiều máy; commit và push đều phải chờ xác nhận.
 - Vercel (free) cũng deploy được repo private nếu cần preview deploy; đổi host không ảnh hưởng Supabase.
-- **Đang chặn:** cần duyệt push lên GitHub và tài khoản Cloudflare để deploy.
+- **Đang chặn:** cần tài khoản Cloudflare để deploy.
 
 **Xong khi:** app cài được từ `drachma.pages.dev` trên iPhone, đăng nhập được, dữ liệu lên Supabase và offline vẫn dùng được.
 

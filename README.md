@@ -1,55 +1,55 @@
-# Drachma — Thu Chi
+# Drachma
 
-PWA ghi chi tiêu cá nhân, offline-first, giao diện tối kiểu "Greek god". Không build, không dependency.
+A personal expense tracker PWA with a dark "Greek god" look. Offline-first, no build step, no framework.
 
-## Chạy local
+## Run locally
 
 ```bash
 python -m http.server 4173
 ```
 
-Mở `http://localhost:4173`.
+Open `http://localhost:4173`.
 
-## Cấu trúc
+## Project structure
 
 ```text
-index.html      khung app + tab bar + sheet
-style.css       theme, layout, component
-app.js          state, render, data layer, export/import
+index.html      app shell, tab bar, sheets
+style.css       theme, layout, components
+app.js          state, rendering, data layer, export/import
 sw.js           service worker, cache-first app shell
-manifest.json   cấu hình PWA
-icons/          icon 192/512/maskable + apple-touch-icon
-PLAN.md         checklist tiến độ
+manifest.json   PWA manifest
+icons/          192/512/maskable icons + apple-touch-icon
+PLAN.md         progress checklist
 ```
 
-## Deploy (Cloudflare Pages, repo private)
+## Deploy to Cloudflare Pages (private repo)
 
-1. Push repo lên GitHub (private).
+1. Push the repo to GitHub (private).
 2. Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git.
-3. Chọn repo `drachma`.
-4. Framework preset `None`, build command để trống, build output directory `/`.
-5. Deploy và mở `https://drachma.pages.dev/`.
+3. Select the `drachma` repository.
+4. Framework preset `None`, leave the build command empty, build output directory `/`.
+5. Deploy and open `https://drachma.pages.dev/`.
 
-Supabase (khi làm P5): thêm domain `https://drachma.pages.dev/` vào Authentication → URL Configuration → Redirect URLs.
+When Supabase sync lands (P5), add `https://drachma.pages.dev/` to Supabase → Authentication → URL Configuration → Redirect URLs.
 
-## Cài trên iPhone
+## Install on iPhone
 
-Safari → mở link HTTPS → **Share** → **Add to Home Screen** → mở app từ icon.
+Safari → open the HTTPS link → **Share** → **Add to Home Screen** → launch the app from the new icon.
 
-`localStorage` của app đã cài tách biệt với tab Safari, nên hãy cài trước rồi mới nhập dữ liệu. Dữ liệu nhập trong tab Safari sẽ không chuyển sang app.
+The installed app has its own `localStorage`, separate from a Safari tab. Install first, then enter data; anything typed in a Safari tab will not carry over.
 
-## Dữ liệu & backup
+## Data and backup
 
-- Hiện dữ liệu nằm trên máy trong `localStorage`, key `thuchi.v1`.
-- Settings → **Export backup (JSON)** → lưu vào Files/iCloud qua share sheet.
-- iOS có thể xoá storage khi thiếu dung lượng hoặc khi xoá app → backup định kỳ.
-- Cloud sync Supabase: xem `PLAN.md` P5 (chưa triển khai).
+- Expenses are stored on the device in `localStorage` under the `thuchi.v1` key.
+- Settings → **Export backup (JSON)** → save to Files/iCloud through the share sheet.
+- iOS can clear storage under pressure or when the app is deleted, so export regularly.
+- Supabase cloud sync is planned in `PLAN.md` P5 and is not implemented yet.
 
-## Font
+## Fonts
 
-Dùng font hệ thống iOS: SF Pro cho UI/số tiền, New York cho dòng tháng. Không tải webfont nên chạy offline ngay.
+Uses the iOS system fonts: SF Pro for UI and amounts, New York for the month header. No webfonts are downloaded, so the app renders offline immediately.
 
-## Ghi chú
+## Notes
 
-- Mỗi lần sửa `app.js`/`style.css`/`index.html`: bump `CACHE_VERSION` trong `sw.js` rồi mới deploy.
-- Không có backend; host chỉ phục vụ file tĩnh.
+- Bump `CACHE_VERSION` in `sw.js` whenever `app.js`, `style.css`, or `index.html` changes.
+- There is no backend; hosting only serves static files.
