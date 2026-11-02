@@ -36,7 +36,8 @@ const dayHeader = s => {
 };
 
 const fmtN = n => String(Math.round(Math.abs(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-const money = n => (n < 0 ? '-' : '') + S.settings.currency + fmtN(n);
+const money = n => (n < 0 ? '-' : '') + fmtN(n) + ' ' + S.settings.currency;
+const moneyBig = n => `${fmtN(n)} <span class="cur">${esc(S.settings.currency)}</span>`;
 const compact = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '').replace('.', ',') + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
 
 function parseAmt(str) {
@@ -50,7 +51,6 @@ function parseAmt(str) {
 }
 
 /* ───────── icons ───────── */
-const leaves = '<ellipse cx="4.2" cy="6.2" rx="1.5" ry="3" transform="rotate(-30 4.2 6.2)"/><ellipse cx="3.6" cy="11.4" rx="1.5" ry="3" transform="rotate(-8 3.6 11.4)"/><ellipse cx="5.4" cy="16.4" rx="1.5" ry="3" transform="rotate(22 5.4 16.4)"/>';
 const IC = {
   health: '<rect x="3" y="7" width="18" height="13" rx="3.5" fill="currentColor" stroke="none"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M12 10.5v6M9 13.5h6" stroke="#1d1f1d" stroke-width="2.2"/>',
   shopping: '<path d="M5 8.5h14l-.9 11.5H5.9z" fill="currentColor" stroke="none"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/>',
@@ -71,7 +71,7 @@ const IC = {
   cal: '<rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/>',
   lines: '<path d="M4 7h16M4 12h16M4 17h10"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
-  laurel: `<g fill="currentColor" stroke="none">${leaves}</g><path d="M12 21c-5-1.3-8-5-8-10"/><g transform="translate(24 0) scale(-1 1)"><g fill="currentColor" stroke="none">${leaves}</g><path d="M12 21c-5-1.3-8-5-8-10"/></g>`
+  laurel: `<g fill="currentColor" stroke="none"><ellipse cx="8.6" cy="18.4" rx="1.15" ry="2.15" transform="rotate(42 8.6 18.4)"/><ellipse cx="7.2" cy="15.2" rx="1.15" ry="2.15" transform="rotate(26 7.2 15.2)"/><ellipse cx="6.6" cy="11.8" rx="1.15" ry="2.15" transform="rotate(10 6.6 11.8)"/><ellipse cx="7.2" cy="8.5" rx="1.15" ry="2.15" transform="rotate(-6 7.2 8.5)"/><ellipse cx="15.4" cy="18.4" rx="1.15" ry="2.15" transform="rotate(-42 15.4 18.4)"/><ellipse cx="16.8" cy="15.2" rx="1.15" ry="2.15" transform="rotate(-26 16.8 15.2)"/><ellipse cx="17.4" cy="11.8" rx="1.15" ry="2.15" transform="rotate(-10 17.4 11.8)"/><ellipse cx="16.8" cy="8.5" rx="1.15" ry="2.15" transform="rotate(6 16.8 8.5)"/></g><path d="M12 21.8c-3.2-2.6-5-6.2-5-10.1 0-2.1.6-4.1 1.7-5.7" stroke-width="1.7"/><path d="M12 21.8c3.2-2.6 5-6.2 5-10.1 0-2.1-.6-4.1-1.7-5.7" stroke-width="1.7"/>`
 };
 const icon = (n, cls = '') => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true">${IC[n] || IC.other}</svg>`;
 const ICON_CHOICES = ['health', 'shopping', 'food', 'groceries', 'transport', 'bills', 'home', 'star', 'other'];
@@ -168,6 +168,14 @@ const standalone = () => navigator.standalone === true || (window.matchMedia && 
 /* ───────── views ───────── */
 function tile(c) { return `<span class="tile" style="background:${c.color}2e;color:${c.color}">${icon(c.icon)}</span>`; }
 
+const EMPTY_ART = {
+  column: '<path d="M30 10h36M34 10l2 6h24l2-6M36 16v32M48 16v32M60 16v32M31 48h34M27 56h42M24 62h48"/>',
+  amphora: '<path d="M38 8h20M42 8v5c0 4-9 6-9 17 0 12 6 19 15 19s15-7 15-19c0-11-9-13-9-17V8"/><path d="M33 20c-4 2-6 6-6 10M63 20c4 2 6 6 6 10M34 56h28"/>',
+  laurel: '<path d="M48 58c-9-3-14-11-14-21 0-4 1-8 3-11M48 58c9-3 14-11 14-21 0-4-1-8-3-11"/><path d="M36.7 26.5l6-2M35 34l6-1M35.8 41.5l6-.5M59.3 26.5l-6-2M61 34l-6-1M60.2 41.5l-6-.5"/>'
+};
+const emptyState = (kind, line) => `<div class="empty-state"><svg viewBox="0 0 96 72" class="empty-art" aria-hidden="true">${EMPTY_ART[kind] || ''}</svg><p>${esc(line)}</p></div>`;
+const oracle = line => S.settings.tone ? `<div class="oracle">${esc(line)}</div>` : '';
+
 function vOverview() {
   const m = ui.month, ex = inMonth(m), total = sum(ex), t = today();
   const tS = sum(S.expenses.filter(e => !e.deleted && e.date === t));
@@ -181,7 +189,7 @@ function vOverview() {
 
   html += `<div class="card hero" id="hero">
     <div class="label">Spent this month</div>
-    <div class="amount">${money(total)}</div>
+    <div class="amount">${moneyBig(total)}</div>
     <div class="count">${ex.length} expense${ex.length === 1 ? '' : 's'}</div>
     <div class="pill">
       <div><div class="l">Yesterday</div><div class="v ${yS ? '' : 'none'}">${yS ? money(yS) : 'No spending'}</div></div>
@@ -194,10 +202,11 @@ function vOverview() {
     let tone = '';
     if (S.settings.tone) {
       if (pct >= 100) tone = `<div class="tone">Hubris. The budget is breached.</div>`;
+      else if (pct >= 80) tone = `<div class="tone">${icon('laurel', 'laurel')} Nothing in excess.</div>`;
       else if (pct < 80) tone = `<div class="tone">${icon('laurel', 'laurel')} The gods smile upon your purse.</div>`;
     }
     html += `<div class="card budget" data-act="budget" role="button" tabindex="0">
-      <div class="row-h"><h3>Budget</h3><span class="nums">${money(total)} · ${money(b)}</span></div>
+      <div class="row-h"><h3>Budget</h3><span class="nums">${Math.round(pct)}% used</span></div>
       <div class="bar"><i class="${cls}" style="width:${Math.min(100, pct)}%"></i></div>
       <div class="left">${left >= 0 ? money(left) + ' left' : money(-left) + ' over'}</div>${tone}</div>`;
   } else {
@@ -205,7 +214,7 @@ function vOverview() {
   }
 
   if (!ex.length) {
-    html += `<div class="card"><div class="empty">${S.settings.tone ? 'The oracle sees no spending.' : 'No expenses yet.'}</div></div>`;
+    html += `<div class="card">${emptyState('laurel', S.settings.tone ? 'The oracle sees no spending.' : 'No expenses yet.')}</div>`;
     return html;
   }
 
@@ -263,7 +272,7 @@ function filtered() {
 }
 function hlist() {
   const list = filtered();
-  if (!list.length) return `<div class="empty">${S.expenses.length ? 'Nothing matches.' : (S.settings.tone ? 'The oracle sees no spending.' : 'No expenses yet.')}</div>`;
+  if (!list.length) return emptyState('column', S.expenses.length ? 'Nothing matches.' : (S.settings.tone ? 'The oracle sees no spending.' : 'No expenses yet.'));
   const groups = [];
   list.forEach(e => {
     const g = groups[groups.length - 1];
@@ -284,9 +293,9 @@ function vHistory() {
     <div class="chips">
       <button class="chip ${f.date.type !== 'all' ? 'on' : ''}" data-act="f-date">${esc(dateLabel())} ${icon('chev-d')}</button>
       <button class="chip ${f.cat ? 'on' : ''}" data-act="f-cat">${esc(f.cat ? catOf(f.cat).name : 'Category')} ${icon('chev-d')}</button>
-      <button class="chip ${f.method ? 'on' : ''}" data-act="f-method">${esc(f.method || 'Payment Method')} ${icon('chev-d')}</button>
+      <button class="chip ${f.method ? 'on' : ''}" data-act="f-method">${esc(f.method || 'Payment')} ${icon('chev-d')}</button>
     </div>
-    <div id="hlist">${hlist()}</div>`;
+    <div id="hlist">${hlist()}</div>${oracle('Measure is best.')}`;
 }
 
 /* analytics */
@@ -301,8 +310,8 @@ function vAnalytics() {
   }
   let html = `<h1 class="page">Analytics</h1>
     <div class="segwrap">${[3, 6, 12].map(n => `<button class="seg ${ui.range === n ? 'on' : ''}" data-n="${n}">${n} mo</button>`).join('')}</div>
-    <div class="card"><div class="label">Total · ${monthLabel(m)}</div><div class="big-cmp">${money(total)}</div><div class="delta">${delta}</div></div>`;
-  if (!ex.length) return html + `<div class="card"><div class="empty">${S.settings.tone ? 'The oracle sees no spending.' : 'No expenses this month.'}</div></div>`;
+    <div class="card"><div class="label">Total · ${monthLabel(m)}</div><div class="big-cmp">${moneyBig(total)}</div><div class="delta">${delta}</div></div>`;
+  if (!ex.length) return html + `<div class="card">${emptyState('amphora', S.settings.tone ? 'The oracle sees no spending.' : 'No expenses this month.')}</div>${oracle('All things are number.')}`;
 
   const by = {};
   ex.forEach(e => { by[e.categoryId] = (by[e.categoryId] || 0) + e.amount; });
@@ -331,7 +340,7 @@ function vAnalytics() {
     <div class="card"><h3 style="margin-bottom:4px">Biggest expenses</h3>${top.map(e => {
       const c = catOf(e.categoryId);
       return `<div class="item" data-act="edit" data-id="${e.id}" role="button" tabindex="0">${tile(c)}<div class="mid"><div class="t">${esc(titleOf(e))}</div><div class="s">${esc(c.name)} · ${relDate(e.date)}</div></div><div class="a">${money(e.amount)}</div></div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>${oracle('All things are number.')}`;
   return html;
 }
 
@@ -342,7 +351,7 @@ function vSettings() {
   const liveCount = live(S.expenses).length;
   const stale = liveCount && (days === null || days > 14);
   const bk = s.lastBackup ? `Last backup: ${(() => { const d = new Date(s.lastBackup); return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`; })()}` : 'No backup yet';
-  return `<h1 class="page">Settings</h1><div class="meander"></div>
+  return `<h1 class="page">Settings</h1>
   <div class="label set-sec">Budget</div>
   <div class="card list">
     <div class="set-row" data-act="budget" role="button"><span>Monthly budget</span><span class="v">${s.monthlyBudget ? money(s.monthlyBudget) : 'Not set'}</span></div>
@@ -473,12 +482,15 @@ function pickSheet(title, opts, current, onPick) {
 }
 
 function liveAmt(inp, prev) {
+  const fit = () => { if (inp.closest('.amt-card')) inp.style.width = Math.max(1, inp.value.length) + 'ch'; };
+  fit();
   inp.addEventListener('input', () => {
     const v = inp.value;
     if (/[a-z]/i.test(v)) { if (prev) { const n = parseAmt(v); prev.textContent = n ? '= ' + money(n) : ''; } return; }
     const n = v.replace(/\D/g, '');
     inp.value = n ? fmtN(+n) : '';
     if (prev) prev.textContent = '';
+    fit();
   });
 }
 
@@ -493,32 +505,31 @@ function expenseSheet(id) {
   };
   let cat = d.categoryId, method = d.method, armed = false, selDate = d.date;
   const methods = [{ v: '', l: 'None' }, ...st.paymentMethods.map(m => ({ v: m, l: m }))];
-  const catVal = () => { const c = catOf(cat); return `<span style="color:${c.color};display:flex">${icon(c.icon)}</span>${esc(c.name)}`; };
 
   openSheet(`<div class="sheet-head">
       <button type="button" class="sbtn" id="sx" aria-label="Close">${icon('close')}</button>
       <div class="sheet-t">${ex ? 'Edit Expense' : 'New Expense'}</div>
-      <button type="button" class="sbtn ok" id="save" aria-label="Save" ${d.amount ? '' : 'disabled'}>${icon('check')}</button>
+      <span class="sbtn-spacer"></span>
     </div>
     <div class="amt-card">
-      <span class="cur">${esc(st.currency)}</span>
       <input id="amt" class="amt" inputmode="numeric" placeholder="0" autocomplete="off" value="${d.amount ? fmtN(d.amount) : ''}" aria-label="Amount">
-      <span class="wm" id="wm" style="color:${catOf(cat).color}">${icon(catOf(cat).icon)}</span>
+      <span class="cur">${esc(st.currency)}</span>
     </div>
     <div class="sbody">
-      <div class="srow"><span class="sicon aa">Aa</span><input id="ttl" class="sinp" placeholder="Title (e.g. Weekly groceries)" value="${esc(d.title)}" autocomplete="off" aria-label="Title"></div>
-      <button type="button" class="srow" id="catrow"><span class="sicon">${icon('tag')}</span><span class="slabel">Category</span><span class="sval" id="catval">${catVal()}</span>${icon('chev-d', 'sch')}</button>
-      <div class="cgrid" id="cats"></div>
-      <button type="button" class="srow" id="payrow"><span class="sicon">${icon('card')}</span><span class="slabel">Payment Method</span><span class="sval" id="payval">${esc(method || 'None')}</span>${icon('chev-d', 'sch')}</button>
-      <div class="cgrid" id="meths" hidden></div>
-      <div class="srow"><span class="sicon">${icon('cal')}</span><div class="dates">
-        <button type="button" class="dbtn" data-day="0">Today</button>
-        <button type="button" class="dbtn" data-day="-1">Yesterday</button>
-        <label class="dbtn custom" id="dlab">${relDate(selDate)}<input id="dt" type="date" value="${selDate}" aria-label="Date"></label>
+      <input id="ttl" class="sinp-title" placeholder="Title (e.g. Weekly groceries)" value="${esc(d.title)}" autocomplete="off" aria-label="Title">
+      <div class="fgroup"><div class="fg-label">Category</div><div class="cgrid" id="cats"></div></div>
+      <div class="fgroup"><div class="fg-label">Payment method</div><div class="cgrid" id="meths"></div></div>
+      <div class="fgroup"><div class="fg-label">Date</div><div class="dates">
+        <button type="button" class="dbtn" id="d0" data-day="0">Today</button>
+        <button type="button" class="dbtn" id="d1" data-day="-1">Yesterday</button>
+        <label class="dbtn custom" id="dlab"><span id="dlabt">Pick date…</span><input id="dt" type="date" value="${selDate}" aria-label="Date"></label>
       </div></div>
-      <div class="srow"><span class="sicon">${icon('lines')}</span><input id="nt" class="sinp" placeholder="Note" value="${esc(d.note)}" autocomplete="off" aria-label="Note"></div>
+      <div class="fgroup"><div class="fg-label">Note</div><input id="nt" class="sinp-note" placeholder="Optional" value="${esc(d.note)}" autocomplete="off" aria-label="Note"></div>
     </div>
-    ${ex ? '<button class="btn del" id="del">Delete</button>' : ''}`);
+    <div class="sheet-actions">
+      ${ex ? '<button class="btn del" id="del">Delete expense</button>' : ''}
+      <button class="btn" id="save" ${d.amount ? '' : 'disabled'}>Save</button>
+    </div>`);
 
   function paintCats() {
     $('#cats').innerHTML = liveCats().map(c =>
@@ -531,10 +542,6 @@ function expenseSheet(id) {
   }
   function markCat() {
     $('#cats').querySelectorAll('.cchip').forEach(x => x.classList.toggle('on', x.dataset.id === cat));
-    $('#catval').innerHTML = catVal();
-    const c = catOf(cat);
-    $('#wm').style.color = c.color;
-    $('#wm').innerHTML = icon(c.icon);
   }
   function newCat() {
     $('#cats').innerHTML = `<div class="newcat"><input id="ncn" class="sinp" placeholder="Category name" aria-label="Category name"><button type="button" class="mini" id="ncok">Add</button><button type="button" class="mini" id="ncx">Cancel</button></div>`;
@@ -556,8 +563,6 @@ function expenseSheet(id) {
   syncSave();
 
   $('#sx').onclick = closeSheet;
-  $('#catrow').onclick = () => { const g = $('#cats'); g.hidden = !g.hidden; };
-  $('#payrow').onclick = () => { const g = $('#meths'); g.hidden = !g.hidden; };
   $('#cats').onclick = e => {
     const b = e.target.closest('.cchip'); if (!b) return;
     if (b.dataset.new) { newCat(); return; }
@@ -567,17 +572,24 @@ function expenseSheet(id) {
     const b = e.target.closest('.cchip'); if (!b) return;
     method = b.dataset.m;
     $('#meths').querySelectorAll('.cchip').forEach(x => x.classList.toggle('on', x === b));
-    $('#payval').textContent = method || 'None';
   };
+  function paintDates() {
+    const isCustom = selDate !== today() && selDate !== addDays(today(), -1);
+    $('#d0').classList.toggle('on', selDate === today());
+    $('#d1').classList.toggle('on', selDate === addDays(today(), -1));
+    $('#dlab').classList.toggle('on', isCustom);
+    $('#dlabt').textContent = isCustom ? (() => { const dd = parseD(selDate); return `${dd.getDate()} ${MON[dd.getMonth()]}`; })() : 'Pick date…';
+  }
   $('#dt').addEventListener('change', () => {
     selDate = $('#dt').value || today();
-    $('#dlab').firstChild.nodeValue = relDate(selDate);
+    paintDates();
   });
   document.querySelectorAll('.dbtn[data-day]').forEach(b => b.onclick = () => {
     selDate = addDays(today(), +b.dataset.day);
     $('#dt').value = selDate;
-    $('#dlab').firstChild.nodeValue = relDate(selDate);
+    paintDates();
   });
+  paintDates();
 
   saveBtn.onclick = () => {
     const amount = parseAmt(amt.value);

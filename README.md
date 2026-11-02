@@ -57,7 +57,7 @@ The installed app has its own `localStorage`, separate from a Safari tab. Instal
 
 ## Fonts
 
-Uses the iOS system fonts: SF Pro for UI and amounts, New York for the month header. No webfonts are downloaded, so the app renders offline immediately.
+Uses only the system fonts: SF Pro for UI and amounts, and the system serif (New York on iOS) for page titles, sheet titles and the big totals. Nothing is downloaded and the app renders offline immediately.
 
 ## Notes
 
