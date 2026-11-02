@@ -1,4 +1,4 @@
-# Drachma
+# Olympus Finance
 
 A personal expense tracker PWA with a dark "Greek god" look. Offline-first, no build step, no framework.
 
@@ -22,15 +22,15 @@ icons/          192/512/maskable icons + apple-touch-icon
 PLAN.md         progress checklist
 ```
 
-## Deploy to Cloudflare Pages (private repo)
+## Deploy to Cloudflare Workers (private repo)
 
 1. Push the repo to GitHub (private).
-2. Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git.
+2. Cloudflare Dashboard → Workers & Pages → Create → Workers → Connect to Git.
 3. Select the `drachma` repository.
 4. Framework preset `None`, leave the build command empty, build output directory `/`.
-5. Deploy and open `https://drachma.pages.dev/`.
+5. Deploy and open `https://drachma.nghiaasi4n.workers.dev/`.
 
-When Supabase sync lands (P5), add `https://drachma.pages.dev/` to Supabase → Authentication → URL Configuration → Redirect URLs.
+Add `https://drachma.nghiaasi4n.workers.dev/` to Supabase → Authentication → URL Configuration → Redirect URLs.
 
 ## Install on iPhone
 
