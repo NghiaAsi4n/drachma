@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v20';
+const CACHE_VERSION = 'v21';
 const SHELL = `thuchi-shell-${CACHE_VERSION}`;
 const ASSETS = [
   './', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.json',

@@ -172,14 +172,15 @@ h1.page{font-family:var(--serif);font-weight:600;font-size:27px;letter-spacing:.
 
 /* FAB + tab bar */
 #fab{
-  position:absolute;right:16px;bottom:calc(var(--sab) + 72px);z-index:6;
+  position:fixed;right:max(16px,calc(50vw - 224px));bottom:calc(var(--sab) + 70px);z-index:6;
   width:52px;height:52px;border-radius:50%;background:#efede6;color:var(--gold);
   display:grid;place-items:center;box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 0 1px rgba(201,164,92,.35) inset;
 }
 #fab svg{width:22px;height:22px;stroke:#1f2220;stroke-width:2.2}
 #fab:active{transform:scale(.95)}
 #tabbar{
-  position:absolute;left:16px;right:16px;bottom:calc(var(--sab) + 8px);z-index:6;height:56px;
+  position:fixed;left:50%;transform:translateX(-50%);width:min(calc(100% - 32px),448px);
+  bottom:calc(var(--sab) + 4px);z-index:6;height:56px;
   background:linear-gradient(180deg,rgba(76,81,74,.5),rgba(33,36,33,.62));
   -webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);
   border-radius:28px;border:1px solid rgba(255,255,255,.16);display:flex;padding:5px;
@@ -285,7 +286,7 @@ textarea.inp{height:76px;padding:12px 16px;resize:none}
 .range .field{flex:1;margin-top:0}
 
 #toast{
-  position:absolute;left:50%;bottom:calc(var(--sab) + 130px);z-index:30;transform:translateX(-50%);
+  position:fixed;left:50%;bottom:calc(var(--sab) + 126px);z-index:30;transform:translateX(-50%);
   width:max-content;max-width:calc(100% - 40px);background:rgba(44,47,43,.94);color:var(--text);
   border:1px solid rgba(255,255,255,.14);border-radius:22px;padding:10px 16px;
   font-size:15px;font-weight:600;display:flex;gap:14px;align-items:center;
