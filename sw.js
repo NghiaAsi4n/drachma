@@ -1,7 +1,7 @@
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v9';
 const SHELL = `thuchi-shell-${CACHE_VERSION}`;
 const ASSETS = [
-  './', 'index.html', 'style.css', 'app.js', 'manifest.json',
+  './', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.json',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'
 ];
 

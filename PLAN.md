@@ -83,39 +83,42 @@
 
 Chuyển data từ "chỉ trên máy" sang "local là cache, Supabase là nguồn sự thật". App vẫn dùng offline; có mạng thì sync. Thiết kế cho 1 người dùng, RLS sẵn sàng mở rộng 5–10 người.
 
-**Đang chặn:** chưa có project Supabase — cần `SUPABASE_URL` + `anon key` trước khi viết sync.
+**Trạng thái:** đã test thật với Supabase: đăng ký/đăng nhập email + mật khẩu, session qua reload, sign out, push/pull, RLS 2 tài khoản. Còn test 2 thiết bị và refresh token sau 1 giờ.
 
 **Tài khoản & phiên đăng nhập**
-- [ ] Auth mặc định: email OTP 6 số (magic link không dùng được trong PWA đã cài trên iOS vì link mở Safari, storage tách biệt)
+- [x] Auth email + mật khẩu: đăng ký và đăng nhập ngay trong app
+- [ ] Tắt "Confirm email" trong Supabase → Authentication → Providers → Email (để đăng ký trả session ngay)
 - [ ] (Tùy chọn) Google/Apple OAuth — chỉ thêm nếu chấp nhận redirect có thể mở Safari trên iOS
-- [ ] Lưu phiên: `persistSession: true` + `autoRefreshToken: true` (supabase-js), hoặc tự lưu access/refresh token trong localStorage nếu dùng `fetch`
-- [ ] Chỉ phải đăng nhập lại khi sign out, refresh token bị thu hồi, hoặc iOS xoá storage/cài lại app
-- [ ] Settings: email đang đăng nhập, Last synced, Sync now, Sign out
-- [ ] Sign out: xoá session + cache local sau khi sync xong
-- [ ] Không chặn app khi offline: mở app vẫn đọc/ghi local, sync sau
+- [x] Lưu phiên trong `localStorage` + tự refresh access token
+- [x] Chỉ phải đăng nhập lại khi sign out, refresh token bị thu hồi, hoặc iOS xoá storage/cài lại app
+- [x] Settings: email đang đăng nhập, Last synced, Sync now, Sign out
+- [x] Sign out: giữ dữ liệu local, xoá session
+- [x] Không chặn app khi offline: mở app vẫn đọc/ghi local, sync sau
 
 **Schema & đồng bộ**
-- [ ] Local schema `v2`: thêm `pending`, `updated_at`, `deleted`; migrate từ `v1` (backfill `updated_at`, `pending = true`)
-- [ ] Bảng `expenses` (id, user_id, title, amount, category_id, method, date, note, ts, updated_at, deleted), `categories`, `settings`
-- [ ] `updated_at` do server set (`now()`), không lấy đồng hồ máy
-- [ ] RLS cả 3 bảng cho select/insert/update/delete: `user_id = auth.uid()`
-- [ ] `sync.js`: push pending, pull bản ghi mới hơn; xung đột last-write-wins
-- [ ] Pull phân trang (Supabase mặc định 1000 dòng/lần); pull khi mở app và khi quay lại foreground
-- [ ] Xoá mềm + Undo: Undo = `deleted = false` + `updated_at` mới
-- [ ] Hàng đợi offline + retry/backoff; hiển thị số pending và lỗi sync, không chặn UI
-- [ ] Đồng bộ `categories`/`settings`; xoá category đẩy việc gán lại `other`
-- [ ] Lần đăng nhập đầu: export JSON trước, rồi hỏi Merge/Replace
-- [ ] Import JSON đánh dấu toàn bộ bản ghi là pending
-- [ ] `config.js` chỉ chứa `SUPABASE_URL` + `anon key`; không bao giờ có `service_role`
-- [ ] Service worker không cache request tới Supabase
-- [ ] Chốt client: `fetch` tới PostgREST (không phụ thuộc) hoặc self-host `supabase-js`
-- [ ] Ghi chú free tier: project tự pause sau 7 ngày không hoạt động; 5–10 user vẫn trong hạn mức
+- [x] Local schema `v2`: thêm `pending`, `updated_at`, `deleted`; migrate từ `v1` và ghi lại localStorage
+- [x] Chạy `supabase/schema.sql` trong SQL Editor
+- [x] Bảng `expenses` (id, user_id, title, amount, category_id, method, date, note, ts, updated_at, deleted), `categories`, `settings`
+- [ ] `updated_at` do server set (`now()`) qua trigger, không lấy đồng hồ máy
+- [x] RLS cả 3 bảng cho select/insert/update/delete: `user_id = auth.uid()`
+- [x] Sync: push pending, pull bản ghi mới hơn; xung đột last-write-wins
+- [x] Pull phân trang 1000 dòng/lần; pull khi mở app và khi quay lại foreground
+- [x] Xoá mềm + Undo: Undo = `deleted = false` + `updated_at` mới
+- [x] Hàng đợi offline: cờ `pending`, đếm số pending, không chặn UI
+- [ ] Retry/backoff tự động khi lỗi mạng
+- [x] Đồng bộ `categories`/`settings`; xoá category đẩy việc gán lại `other`
+- [x] Lần đăng nhập đầu: tự merge local + cloud (không có Replace để tránh mất dữ liệu)
+- [x] Import JSON đánh dấu toàn bộ bản ghi là pending
+- [x] `config.js` chỉ chứa `SUPABASE_URL` + publishable key; không có `service_role`
+- [x] Service worker không cache request tới Supabase (chỉ cache same-origin)
+- [x] Chốt client: `fetch` tới PostgREST, không dùng SDK
+- [x] Ghi chú free tier: project tự pause sau 7 ngày không hoạt động; 5–10 user vẫn trong hạn mức
 
 **Xong khi:** đăng nhập OTP một lần, đóng/mở app vẫn còn phiên; hai thiết bị cùng tài khoản thấy chung dữ liệu; offline vẫn thêm/sửa được và tự sync khi có mạng.
 
 ## P6 — QA UI + sync
 
-**Đã chạy (Edge headless):** thêm khoản, tạo category mới, chọn payment, Today/Yesterday, `50k`, Analytics 3/6/12 tháng, History nhóm ngày, header compact, offline reload. **Chặn:** các mục sync chờ P5.
+**Đã chạy (Edge headless):** thêm khoản, tạo category mới, chọn payment, Today/Yesterday, `50k`, Analytics 3/6/12 tháng, History nhóm ngày, header compact, offline reload; sync thật với Supabase (signup, session, sign out, push/pull, RLS 2 user).
 
 **UI**
 - [ ] Thêm/sửa/xoá + Undo
@@ -128,10 +131,10 @@ Chuyển data từ "chỉ trên máy" sang "local là cache, Supabase là nguồ
 - [ ] Sheet trên iPhone: bàn phím số, safe-area, xoay màn hình
 
 **Sync & phiên**
-- [ ] Đăng nhập OTP; đóng app, mở lại vẫn còn phiên
+- [x] Đăng nhập email + mật khẩu; đóng app, mở lại vẫn còn phiên
 - [ ] Để qua hơn 1 giờ, token tự refresh, thao tác vẫn bình thường
-- [ ] Sign out rồi đăng nhập lại: dữ liệu pull về đủ
-- [ ] Hai tài khoản khác nhau: không đọc/ghi được dữ liệu của nhau (RLS)
+- [x] Sign out rồi đăng nhập lại: dữ liệu pull về đủ
+- [x] Hai tài khoản khác nhau: không đọc/ghi được dữ liệu của nhau (RLS)
 - [ ] Hai thiết bị cùng tài khoản: thêm/sửa/xoá đồng bộ đúng
 - [ ] Offline: thêm/sửa/xoá, mở lại app, có mạng thì sync
 - [ ] Xoá rồi Undo trước và sau khi sync

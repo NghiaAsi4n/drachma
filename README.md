@@ -43,7 +43,17 @@ The installed app has its own `localStorage`, separate from a Safari tab. Instal
 - Expenses are stored on the device in `localStorage` under the `thuchi.v1` key.
 - Settings → **Export backup (JSON)** → save to Files/iCloud through the share sheet.
 - iOS can clear storage under pressure or when the app is deleted, so export regularly.
-- Supabase cloud sync is planned in `PLAN.md` P5 and is not implemented yet.
+- Supabase cloud sync is available from Settings → Cloud sync.
+
+## Cloud sync (Supabase)
+
+- `config.js` holds the project URL and publishable key.
+- Run `supabase/schema.sql` in the Supabase SQL Editor once, before the first sign-in.
+- Turn off **Confirm email** in Supabase → Authentication → Providers → Email so sign-up returns a session immediately.
+- Create an account with email + password from Settings → Cloud sync, or sign in to an existing one.
+- The session is stored in `localStorage` and refreshed automatically.
+- Local data stays cached and usable offline; pending changes are pushed when online.
+- RLS restricts every row to its owner (`user_id = auth.uid()`).
 
 ## Fonts
 

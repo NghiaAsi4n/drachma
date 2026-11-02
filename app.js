@@ -88,23 +88,33 @@ const DEFAULT_CATS = [
   { id: 'other', name: 'Other', color: '#9a9b92', icon: 'other' }
 ];
 function defaults() {
+  const now = new Date().toISOString();
   return {
-    version: 1,
-    settings: { currency: 'đ', monthlyBudget: 4500000, paymentMethods: ['Cash', 'Card', 'Bank Transfer', 'Other'], tone: true, lastBackup: null, lastPromptMonth: null, lastCat: null, lastMethod: null },
-    categories: DEFAULT_CATS.map(c => ({ ...c })),
+    version: 2,
+    settings: { currency: 'đ', monthlyBudget: 4500000, paymentMethods: ['Cash', 'Card', 'Bank Transfer', 'Other'], tone: true, lastBackup: null, lastPromptMonth: null, lastCat: null, lastMethod: null, updated_at: now, pending: true },
+    categories: DEFAULT_CATS.map(c => ({ ...c, deleted: false, updated_at: now, pending: true })),
     expenses: []
   };
 }
 const validExp = e => e && typeof e === 'object' && isFinite(+e.amount) && /^\d{4}-\d{2}-\d{2}$/.test(e.date || '');
 function migrate(j) {
   const d = defaults();
+  const now = new Date().toISOString();
   const o = {
-    version: 1,
-    settings: { ...d.settings, ...(j.settings || {}) },
-    categories: Array.isArray(j.categories) && j.categories.length ? j.categories.filter(c => c && c.id && c.name).map(c => ({ id: String(c.id), name: String(c.name), color: c.color || '#9a9b92', icon: c.icon || 'other' })) : d.categories,
+    version: 2,
+    settings: {
+      ...d.settings, ...(j.settings || {}),
+      updated_at: (j.settings && j.settings.updated_at) || now,
+      pending: !(j.settings && j.settings.pending === false)
+    },
+    categories: Array.isArray(j.categories) && j.categories.length ? j.categories.filter(c => c && c.id && c.name).map(c => ({
+      id: String(c.id), name: String(c.name), color: c.color || '#9a9b92', icon: c.icon || 'other',
+      deleted: !!c.deleted, updated_at: c.updated_at || now, pending: c.pending !== false
+    })) : d.categories,
     expenses: (Array.isArray(j.expenses) ? j.expenses : []).filter(validExp).map(e => ({
       id: String(e.id || uid()), title: String(e.title || ''), amount: Math.round(+e.amount),
-      categoryId: e.categoryId || 'other', method: e.method || '', date: e.date, note: String(e.note || ''), ts: +e.ts || 0
+      categoryId: e.categoryId || 'other', method: e.method || '', date: e.date, note: String(e.note || ''), ts: +e.ts || 0,
+      deleted: !!e.deleted, updated_at: e.updated_at || now, pending: e.pending !== false
     }))
   };
   if (!Array.isArray(o.settings.paymentMethods) || !o.settings.paymentMethods.length) o.settings.paymentMethods = d.settings.paymentMethods;
@@ -117,7 +127,14 @@ function migrate(j) {
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const j = JSON.parse(raw); if (j && typeof j === 'object') return migrate(j); }
+    if (raw) {
+      const j = JSON.parse(raw);
+      if (j && typeof j === 'object') {
+        const m = migrate(j);
+        try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (_) {}
+        return m;
+      }
+    }
   } catch (e) { /* fall through */ }
   return defaults();
 }
@@ -129,7 +146,13 @@ function save() {
 
 const catOf = id => S.categories.find(c => c.id === id) || { id: 'other', name: 'Other', color: '#9a9b92', icon: 'other' };
 const sum = a => a.reduce((t, e) => t + e.amount, 0);
-const inMonth = m => S.expenses.filter(e => monthOf(e.date) === m);
+const live = a => a.filter(x => !x.deleted);
+const liveCats = () => S.categories.filter(c => !c.deleted);
+const stamp = () => new Date().toISOString();
+const touchExp = e => { e.pending = true; e.updated_at = stamp(); };
+const touchCat = c => { c.pending = true; c.updated_at = stamp(); };
+const touchSettings = () => { S.settings.pending = true; S.settings.updated_at = stamp(); };
+const inMonth = m => S.expenses.filter(e => !e.deleted && monthOf(e.date) === m);
 const sorted = a => [...a].sort((x, y) => y.date.localeCompare(x.date) || y.ts - x.ts);
 const titleOf = e => e.title || catOf(e.categoryId).name;
 
@@ -147,8 +170,8 @@ function tile(c) { return `<span class="tile" style="background:${c.color}2e;col
 
 function vOverview() {
   const m = ui.month, ex = inMonth(m), total = sum(ex), t = today();
-  const tS = sum(S.expenses.filter(e => e.date === t));
-  const yS = sum(S.expenses.filter(e => e.date === addDays(t, -1)));
+  const tS = sum(S.expenses.filter(e => !e.deleted && e.date === t));
+  const yS = sum(S.expenses.filter(e => !e.deleted && e.date === addDays(t, -1)));
   const b = S.settings.monthlyBudget, pct = b > 0 ? total / b * 100 : 0;
   let html = '';
 
@@ -196,7 +219,7 @@ function vOverview() {
       <div class="bar"><i style="width:${(amt / total * 100).toFixed(1)}%;background:${c.color}"></i></div></div>`;
   }).join('') + `</div>`;
 
-  const recent = sorted(S.expenses).slice(0, 5);
+  const recent = sorted(live(S.expenses)).slice(0, 5);
   html += `<div class="card"><div class="card-head"><h3>Recent</h3><a class="link" href="#/history" data-act="all-hist">All</a></div>` +
     recent.map(e => {
       const c = catOf(e.categoryId);
@@ -230,7 +253,7 @@ function dateLabel() {
 }
 function filtered() {
   const f = ui.f, q = norm(f.q.trim());
-  return sorted(S.expenses.filter(e => {
+  return sorted(live(S.expenses).filter(e => {
     if (f.cat && e.categoryId !== f.cat) return false;
     if (f.method && e.method !== f.method) return false;
     if (!inDate(e.date, f.date)) return false;
@@ -316,7 +339,8 @@ function vAnalytics() {
 function vSettings() {
   const s = S.settings;
   const days = s.lastBackup ? Math.floor((Date.now() - s.lastBackup) / 864e5) : null;
-  const stale = S.expenses.length && (days === null || days > 14);
+  const liveCount = live(S.expenses).length;
+  const stale = liveCount && (days === null || days > 14);
   const bk = s.lastBackup ? `Last backup: ${(() => { const d = new Date(s.lastBackup); return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`; })()}` : 'No backup yet';
   return `<h1 class="page">Settings</h1><div class="meander"></div>
   <div class="label set-sec">Budget</div>
@@ -326,17 +350,19 @@ function vSettings() {
   </div>
   <div class="label set-sec">Categories</div>
   <div class="card list">
-    ${S.categories.map(c => `<div class="set-row" data-act="cat-edit" data-id="${esc(c.id)}" role="button"><span style="display:flex;gap:12px;align-items:center"><i class="dot" style="background:${c.color}"></i>${esc(c.name)}</span><span class="v">${S.expenses.filter(e => e.categoryId === c.id).length}</span></div>`).join('')}
+    ${liveCats().map(c => `<div class="set-row" data-act="cat-edit" data-id="${esc(c.id)}" role="button"><span style="display:flex;gap:12px;align-items:center"><i class="dot" style="background:${c.color}"></i>${esc(c.name)}</span><span class="v">${S.expenses.filter(e => !e.deleted && e.categoryId === c.id).length}</span></div>`).join('')}
     <div class="set-row" data-act="cat-edit" role="button" style="color:var(--gold)"><span>+ Add category</span></div>
   </div>
   <div class="label set-sec">Payment methods</div>
   <div class="card list">
-    ${s.paymentMethods.map(m => `<div class="set-row" data-act="m-edit" data-m="${esc(m)}" role="button"><span>${esc(m)}</span><span class="v">${S.expenses.filter(e => e.method === m).length}</span></div>`).join('')}
+    ${s.paymentMethods.map(m => `<div class="set-row" data-act="m-edit" data-m="${esc(m)}" role="button"><span>${esc(m)}</span><span class="v">${S.expenses.filter(e => !e.deleted && e.method === m).length}</span></div>`).join('')}
     <div class="set-row" data-act="m-edit" role="button" style="color:var(--gold)"><span>+ Add method</span></div>
   </div>
+  <div class="label set-sec">Cloud sync</div>
+  <div class="card list">${cloudSection()}</div>
   <div class="label set-sec">Backup</div>
   <div class="card list">
-    <div class="set-row" style="display:block"><div>${bk}</div><div class="v" style="margin-top:2px">${S.expenses.length} expenses stored on this device</div>${stale ? '<div class="warn-chip">Back up now — iOS can clear app data</div>' : ''}</div>
+    <div class="set-row" style="display:block"><div>${bk}</div><div class="v" style="margin-top:2px">${liveCount} expenses stored on this device</div>${stale ? '<div class="warn-chip">Back up now — iOS can clear app data</div>' : ''}</div>
     <div class="set-row" data-act="export-json" role="button"><span>Export backup (JSON)</span><span class="v">Share / Files</span></div>
     <div class="set-row" data-act="export-csv" role="button"><span>Export CSV</span><span class="v">Excel</span></div>
     <div class="set-row" data-act="import" role="button"><span>Import backup</span><span class="v">JSON</span></div>
@@ -462,7 +488,7 @@ function expenseSheet(id) {
   const st = S.settings;
   const d = ex || {
     title: '', amount: 0, note: '', date: today(),
-    categoryId: S.categories.some(c => c.id === st.lastCat) ? st.lastCat : S.categories[0].id,
+    categoryId: liveCats().some(c => c.id === st.lastCat) ? st.lastCat : (liveCats()[0] ? liveCats()[0].id : 'other'),
     method: st.paymentMethods.includes(st.lastMethod) ? st.lastMethod : ''
   };
   let cat = d.categoryId, method = d.method, armed = false, selDate = d.date;
@@ -495,7 +521,7 @@ function expenseSheet(id) {
     ${ex ? '<button class="btn del" id="del">Delete</button>' : ''}`);
 
   function paintCats() {
-    $('#cats').innerHTML = S.categories.map(c =>
+    $('#cats').innerHTML = liveCats().map(c =>
       `<button type="button" class="cchip ${c.id === cat ? 'on' : ''}" data-id="${esc(c.id)}"><span style="color:${c.color};display:flex">${icon(c.icon)}</span>${esc(c.name)}</button>`
     ).join('') + `<button type="button" class="cchip new" data-new="1">${icon('plus')} New</button>`;
   }
@@ -516,7 +542,7 @@ function expenseSheet(id) {
     $('#ncx').onclick = paintCats;
     $('#ncok').onclick = () => {
       const name = $('#ncn').value.trim(); if (!name) { $('#ncn').focus(); return; }
-      const c = { id: 'c' + Date.now().toString(36), name, color: COLORS[S.categories.length % COLORS.length], icon: 'star' };
+      const c = { id: 'c' + Date.now().toString(36), name, color: COLORS[S.categories.length % COLORS.length], icon: 'star', deleted: false, updated_at: stamp(), pending: true };
       S.categories.push(c); save(); cat = c.id;
       paintCats(); markCat();
     };
@@ -558,7 +584,8 @@ function expenseSheet(id) {
     if (!amount) { amt.focus(); return; }
     const rec = {
       id: ex ? ex.id : uid(), title: $('#ttl').value.trim(), amount, categoryId: cat, method,
-      date: selDate || today(), note: $('#nt').value.trim(), ts: ex ? ex.ts : Date.now()
+      date: selDate || today(), note: $('#nt').value.trim(), ts: ex ? ex.ts : Date.now(),
+      deleted: false, updated_at: stamp(), pending: true
     };
     if (ex) S.expenses[S.expenses.indexOf(ex)] = rec; else S.expenses.push(rec);
     st.lastCat = cat; st.lastMethod = method;
@@ -572,10 +599,11 @@ function expenseSheet(id) {
   if (!ex) amt.focus();
 }
 function removeExpense(id) {
-  const i = S.expenses.findIndex(e => e.id === id); if (i < 0) return;
-  const [gone] = S.expenses.splice(i, 1);
+  const e = S.expenses.find(x => x.id === id);
+  if (!e || e.deleted) return;
+  e.deleted = true; touchExp(e);
   save(); render(true);
-  toast('Deleted', { action: 'Undo', fn: () => { S.expenses.push(gone); save(); render(true); } });
+  toast('Deleted', { action: 'Undo', fn: () => { e.deleted = false; touchExp(e); save(); render(true); } });
 }
 
 /* settings sheets */
@@ -584,18 +612,18 @@ function budgetSheet() {
     <input id="bv" class="amt" inputmode="numeric" placeholder="0" value="${S.settings.monthlyBudget ? fmtN(S.settings.monthlyBudget) : ''}">
     <button class="btn" id="ok">Save</button><button class="btn ghost" id="rm">Remove budget</button>`);
   liveAmt($('#bv'));
-  $('#ok').onclick = () => { S.settings.monthlyBudget = parseAmt($('#bv').value); save(); closeSheet(); render(true); };
-  $('#rm').onclick = () => { S.settings.monthlyBudget = 0; save(); closeSheet(); render(true); };
+  $('#ok').onclick = () => { S.settings.monthlyBudget = parseAmt($('#bv').value); touchSettings(); save(); closeSheet(); render(true); };
+  $('#rm').onclick = () => { S.settings.monthlyBudget = 0; touchSettings(); save(); closeSheet(); render(true); };
   $('#bv').focus();
 }
 function currencySheet() {
   openSheet(`<div class="sheet-t">Currency symbol</div>
     <input id="cv" class="inp" maxlength="4" value="${esc(S.settings.currency)}" style="text-align:center;font-size:24px">
     <button class="btn" id="ok">Save</button>`);
-  $('#ok').onclick = () => { S.settings.currency = $('#cv').value.trim() || 'đ'; save(); closeSheet(); render(true); };
+  $('#ok').onclick = () => { S.settings.currency = $('#cv').value.trim() || 'đ'; touchSettings(); save(); closeSheet(); render(true); };
 }
 function categorySheet(id) {
-  const c0 = id ? S.categories.find(c => c.id === id) : null;
+  const c0 = id ? S.categories.find(c => c.id === id && !c.deleted) : null;
   let color = c0 ? c0.color : COLORS[0], ic = c0 ? c0.icon : 'star', armed = false;
   openSheet(`<div class="sheet-t">${c0 ? 'Edit category' : 'New category'}</div>
     <div class="field" style="margin-top:0"><span class="label">Name</span><input id="cn" class="inp" value="${c0 ? esc(c0.name) : ''}" placeholder="e.g. Coffee"></div>
@@ -606,16 +634,16 @@ function categorySheet(id) {
   $('#ics').onclick = e => { const b = e.target.closest('button'); if (!b) return; ic = b.dataset.i; $('#ics').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
   $('#ok').onclick = () => {
     const name = $('#cn').value.trim(); if (!name) { $('#cn').focus(); return; }
-    if (c0) { c0.name = name; c0.color = color; c0.icon = ic; }
-    else S.categories.push({ id: 'c' + Date.now().toString(36), name, color, icon: ic });
+    if (c0) { c0.name = name; c0.color = color; c0.icon = ic; touchCat(c0); }
+    else S.categories.push({ id: 'c' + Date.now().toString(36), name, color, icon: ic, deleted: false, updated_at: stamp(), pending: true });
     save(); closeSheet(); render(true);
   };
   if ($('#del')) $('#del').onclick = () => {
     const b = $('#del');
     if (!armed) { armed = true; b.textContent = 'Tap again — expenses move to Other'; return; }
-    if (!S.categories.some(c => c.id === 'other')) S.categories.push({ ...DEFAULT_CATS[DEFAULT_CATS.length - 1] });
-    S.expenses.forEach(e => { if (e.categoryId === c0.id) e.categoryId = 'other'; });
-    S.categories = S.categories.filter(c => c.id !== c0.id);
+    if (!liveCats().some(c => c.id === 'other')) S.categories.push({ ...DEFAULT_CATS[DEFAULT_CATS.length - 1], deleted: false, updated_at: stamp(), pending: true });
+    S.expenses.forEach(e => { if (!e.deleted && e.categoryId === c0.id) { e.categoryId = 'other'; touchExp(e); } });
+    c0.deleted = true; touchCat(c0);
     save(); closeSheet(); render(true);
   };
 }
@@ -630,16 +658,18 @@ function methodSheet(name) {
     if (name) {
       if (v !== name && list.includes(v)) { toast('Already exists'); return; }
       list[list.indexOf(name)] = v;
-      S.expenses.forEach(e => { if (e.method === name) e.method = v; });
+      S.expenses.forEach(e => { if (!e.deleted && e.method === name) { e.method = v; touchExp(e); } });
       if (S.settings.lastMethod === name) S.settings.lastMethod = v;
     } else if (!list.includes(v)) list.push(v);
+    touchSettings();
     save(); closeSheet(); render(true);
   };
   if ($('#del')) $('#del').onclick = () => {
     const b = $('#del');
     if (!armed) { armed = true; b.textContent = 'Tap again to delete'; return; }
     S.settings.paymentMethods = S.settings.paymentMethods.filter(m => m !== name);
-    S.expenses.forEach(e => { if (e.method === name) e.method = ''; });
+    S.expenses.forEach(e => { if (!e.deleted && e.method === name) { e.method = ''; touchExp(e); } });
+    touchSettings();
     save(); closeSheet(); render(true);
   };
 }
@@ -693,7 +723,7 @@ function exportJSON() {
 function exportCSV() {
   const q = c => `"${String(c).replace(/"/g, '""')}"`;
   const rows = [['Date', 'Title', 'Category', 'Amount', 'Payment method', 'Note'],
-    ...sorted(S.expenses).map(e => [e.date, e.title, catOf(e.categoryId).name, e.amount, e.method, e.note])];
+    ...sorted(live(S.expenses)).map(e => [e.date, e.title, catOf(e.categoryId).name, e.amount, e.method, e.note])];
   const text = '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n');
   shareFile(`thuchi-${today()}.csv`, text, 'text/csv');
 }
@@ -706,7 +736,7 @@ function onImportFile(e) {
     if (!j || !Array.isArray(j.expenses)) { toast('Not a Thu Chi backup'); return; }
     const inc = migrate(j);
     openSheet(`<div class="sheet-t">Import backup</div>
-      <p style="text-align:center;color:var(--muted);margin:0 0 6px">Found <b style="color:var(--text)">${inc.expenses.length}</b> expenses and ${inc.categories.length} categories.<br>You currently have ${S.expenses.length} expenses.</p>
+      <p style="text-align:center;color:var(--muted);margin:0 0 6px">Found <b style="color:var(--text)">${inc.expenses.length}</b> expenses and ${inc.categories.length} categories.<br>You currently have ${live(S.expenses).length} expenses.</p>
       <button class="btn" id="mg">Merge with current data</button>
       <button class="btn ghost" id="rp">Replace current data</button>
       <button class="btn del" id="cn">Cancel</button>`);
@@ -716,9 +746,16 @@ function onImportFile(e) {
       inc.expenses.forEach(x => { if (!have.has(x.id)) S.expenses.push(x); });
       inc.categories.forEach(c => { if (!S.categories.some(x => x.id === c.id)) S.categories.push(c); });
       inc.settings.paymentMethods.forEach(m => { if (!S.settings.paymentMethods.includes(m)) S.settings.paymentMethods.push(m); });
+      S.expenses.forEach(touchExp);
+      S.categories.forEach(touchCat);
+      touchSettings();
       save(); closeSheet(); render(true); toast('Merged');
     };
-    $('#rp').onclick = () => { S = inc; save(); closeSheet(); render(false); toast('Backup restored'); };
+    $('#rp').onclick = () => {
+      S = inc;
+      S.expenses.forEach(touchExp); S.categories.forEach(touchCat); touchSettings();
+      save(); closeSheet(); render(false); toast('Backup restored');
+    };
   };
   fr.readAsText(f);
   e.target.value = '';
@@ -733,7 +770,8 @@ function demo() {
     const s = sets[(i * 7 + 3) % sets.length];
     S.expenses.push({
       id: uid(), title: s[0], amount: Math.round(s[1] * (0.8 + ((i * 37) % 5) / 10) / 1000) * 1000, categoryId: s[2],
-      method: S.settings.paymentMethods[i % S.settings.paymentMethods.length], date: addDays(t, -((i * 3) % 50)), note: '', ts: Date.now() - i
+      method: S.settings.paymentMethods[i % S.settings.paymentMethods.length], date: addDays(t, -((i * 3) % 50)), note: '', ts: Date.now() - i,
+      deleted: false, updated_at: stamp(), pending: true
     });
   }
   save(); render(true); toast('Demo data loaded');
@@ -745,11 +783,260 @@ function clearAll() {
     <button class="btn" id="ok" style="background:var(--rust);color:#fff">Erase everything</button>
     <button class="btn ghost" id="no">Cancel</button>`);
   $('#no').onclick = closeSheet;
-  $('#ok').onclick = () => {
+  $('#ok').onclick = async () => {
     const b = $('#ok');
     if (!armed) { armed = true; b.textContent = 'Really erase? Tap again'; return; }
+    if (signedIn()) {
+      try { await wipeCloud(); } catch (e) { toast('Cloud erase failed: ' + e.message); return; }
+    }
     S = defaults(); save(); closeSheet(); render(false); toast('All data cleared');
   };
+}
+
+/* ───────── cloud sync ───────── */
+const CFG = window.DRACHMA || null;
+const SKEY = 'thuchi.session', LKEY = 'thuchi.lastsync';
+let syncBusy = false, syncError = '';
+
+const cloudOn = () => !!(CFG && CFG.supabaseUrl && CFG.supabaseKey);
+function getSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SKEY) || 'null');
+    return s && s.access_token ? s : null;
+  } catch (_) { return null; }
+}
+function setSession(j) {
+  const s = {
+    access_token: j.access_token, refresh_token: j.refresh_token,
+    expires_at: Date.now() + (j.expires_in || 3600) * 1000,
+    user: { id: (j.user && j.user.id) || '', email: (j.user && j.user.email) || '' }
+  };
+  localStorage.setItem(SKEY, JSON.stringify(s));
+  return s;
+}
+function clearSession() {
+  localStorage.removeItem(SKEY);
+  localStorage.removeItem(LKEY);
+}
+const signedIn = () => !!getSession();
+const pendingCount = () => S.expenses.filter(e => e.pending).length + S.categories.filter(c => c.pending).length + (S.settings.pending ? 1 : 0);
+
+async function authReq(path, body, token) {
+  const headers = { apikey: CFG.supabaseKey, 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const r = await fetch(CFG.supabaseUrl + path, { method: 'POST', headers, body: body ? JSON.stringify(body) : undefined });
+  const txt = await r.text();
+  let j = null;
+  try { j = txt ? JSON.parse(txt) : null; } catch (_) {}
+  if (!r.ok) throw new Error((j && (j.msg || j.message || j.error_description)) || ('HTTP ' + r.status));
+  return j;
+}
+async function refreshSession() {
+  const s = getSession();
+  if (!s || !s.refresh_token) return false;
+  try {
+    const j = await authReq('/auth/v1/token?grant_type=refresh_token', { refresh_token: s.refresh_token });
+    setSession(j);
+    return true;
+  } catch (_) { clearSession(); return false; }
+}
+async function sb(path, opts = {}, retry = true) {
+  if (!cloudOn()) throw new Error('Cloud is not configured');
+  let s = getSession();
+  if (!s) throw new Error('Sign in first');
+  if (s.expires_at < Date.now() + 60000 && !(await refreshSession())) throw new Error('Session expired');
+  s = getSession();
+  const headers = { apikey: CFG.supabaseKey, 'Content-Type': 'application/json', ...(opts.headers || {}), Authorization: 'Bearer ' + s.access_token };
+  const r = await fetch(CFG.supabaseUrl + path, { ...opts, headers });
+  if (r.status === 401 && retry && (await refreshSession())) return sb(path, opts, false);
+  if (!r.ok) {
+    let msg = 'HTTP ' + r.status;
+    try { const j = await r.json(); msg = j.message || j.hint || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  return r.status === 204 ? null : r.json();
+}
+async function passwordAuth(mode, email, password) {
+  if (!cloudOn()) throw new Error('Cloud is not configured');
+  if (password.length < 6) throw new Error('Password needs at least 6 characters');
+  const j = mode === 'signup'
+    ? await authReq('/auth/v1/signup', { email, password })
+    : await authReq('/auth/v1/token?grant_type=password', { email, password });
+  if (!j || !j.access_token) throw new Error('Confirm your email first, or turn off Confirm email in Supabase.');
+  setSession(j);
+}
+async function pullAll(table, since) {
+  const out = [];
+  for (let offset = 0; ; offset += 1000) {
+    const rows = await sb(`/rest/v1/${table}?select=*&order=updated_at.asc&limit=1000&offset=${offset}${since ? `&updated_at=gt.${encodeURIComponent(since)}` : ''}`);
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
+async function syncNow(silent) {
+  if (!cloudOn() || !signedIn() || syncBusy) return;
+  syncBusy = true; syncError = '';
+  try {
+    const uid = getSession().user.id;
+
+    const pendingEx = S.expenses.filter(e => e.pending);
+    if (pendingEx.length) {
+      const rows = pendingEx.map(e => ({
+        user_id: uid, id: e.id, title: e.title, amount: e.amount, category_id: e.categoryId,
+        method: e.method, date: e.date, note: e.note, ts: e.ts, deleted: !!e.deleted
+      }));
+      const saved = await sb('/rest/v1/expenses?on_conflict=user_id,id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(rows)
+      });
+      (saved || []).forEach(r => { const e = S.expenses.find(x => x.id === r.id); if (e) { e.pending = false; e.updated_at = r.updated_at; } });
+      save();
+    }
+
+    const pendingCats = S.categories.filter(c => c.pending);
+    if (pendingCats.length) {
+      const rows = pendingCats.map(c => ({ user_id: uid, id: c.id, name: c.name, color: c.color, icon: c.icon, deleted: !!c.deleted }));
+      const saved = await sb('/rest/v1/categories?on_conflict=user_id,id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(rows)
+      });
+      (saved || []).forEach(r => { const c = S.categories.find(x => x.id === r.id); if (c) { c.pending = false; c.updated_at = r.updated_at; } });
+      save();
+    }
+
+    if (S.settings.pending) {
+      const row = {
+        user_id: uid, currency: S.settings.currency, monthly_budget: S.settings.monthlyBudget,
+        payment_methods: S.settings.paymentMethods, tone: !!S.settings.tone
+      };
+      const saved = await sb('/rest/v1/settings?on_conflict=user_id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify([row])
+      });
+      if (saved && saved[0]) { S.settings.pending = false; S.settings.updated_at = saved[0].updated_at; save(); }
+    }
+
+    const since = localStorage.getItem(LKEY) || '1970-01-01T00:00:00.000Z';
+    const [rex, rcat, rset] = await Promise.all([
+      pullAll('expenses', since),
+      pullAll('categories', since),
+      sb('/rest/v1/settings?select=*')
+    ]);
+    let max = Date.parse(since) || 0;
+
+    (rex || []).forEach(r => {
+      const t = Date.parse(r.updated_at) || 0;
+      if (t > max) max = t;
+      const local = S.expenses.find(x => x.id === r.id);
+      const row = {
+        title: r.title, amount: r.amount, categoryId: r.category_id, method: r.method,
+        date: r.date, note: r.note, ts: r.ts, deleted: !!r.deleted, updated_at: r.updated_at
+      };
+      if (!local) S.expenses.push({ id: r.id, ...row, pending: false });
+      else if (!local.pending) Object.assign(local, row, { pending: false });
+    });
+
+    (rcat || []).forEach(r => {
+      const t = Date.parse(r.updated_at) || 0;
+      if (t > max) max = t;
+      const local = S.categories.find(x => x.id === r.id);
+      const row = { name: r.name, color: r.color, icon: r.icon, deleted: !!r.deleted, updated_at: r.updated_at };
+      if (!local) S.categories.push({ id: r.id, ...row, pending: false });
+      else if (!local.pending) Object.assign(local, row, { pending: false });
+    });
+
+    if (rset && rset[0] && !S.settings.pending) {
+      const r = rset[0];
+      S.settings.currency = r.currency || S.settings.currency;
+      S.settings.monthlyBudget = Number(r.monthly_budget) || 0;
+      if (Array.isArray(r.payment_methods) && r.payment_methods.length) S.settings.paymentMethods = r.payment_methods;
+      S.settings.tone = !!r.tone;
+      S.settings.updated_at = r.updated_at;
+    }
+
+    if (max) localStorage.setItem(LKEY, new Date(max).toISOString());
+    save();
+    if (!silent) { render(true); toast('Synced'); }
+  } catch (e) {
+    syncError = e.message || 'Sync failed';
+    console.error('sync failed:', e);
+    if (!silent) toast(syncError);
+  } finally {
+    syncBusy = false;
+    if (ui.route === 'settings') render(true);
+  }
+}
+
+async function wipeCloud() {
+  const s = getSession();
+  if (!s) return;
+  await Promise.all([
+    sb(`/rest/v1/expenses?user_id=eq.${s.user.id}`, { method: 'DELETE' }),
+    sb(`/rest/v1/categories?user_id=eq.${s.user.id}`, { method: 'DELETE' }),
+    sb(`/rest/v1/settings?user_id=eq.${s.user.id}`, { method: 'DELETE' })
+  ]);
+}
+async function signOutCloud() {
+  const s = getSession();
+  if (s) { try { await authReq('/auth/v1/logout', {}, s.access_token); } catch (_) {} }
+  clearSession();
+  render(true);
+  toast('Signed out');
+}
+
+function cloudSection() {
+  if (!cloudOn()) return `<div class="set-row" style="display:block"><div>Not configured</div><div class="v" style="margin-top:2px">Add SUPABASE_URL and key to config.js</div></div>`;
+  const s = getSession();
+  if (!s) return `<div class="set-row" data-act="cloud" role="button"><span>Sign in to sync</span><span class="v">Email + password</span></div>
+    <div class="set-row" style="display:block"><div class="v">Data stays on this device until you sign in.</div></div>`;
+  const last = localStorage.getItem(LKEY);
+  const lastTxt = last ? new Date(last).toLocaleString() : 'Never';
+  const p = pendingCount();
+  return `<div class="set-row" style="display:block"><div>${esc(s.user.email || 'Signed in')}</div><div class="v" style="margin-top:2px">${p ? p + ' change' + (p === 1 ? '' : 's') + ' pending' : 'Up to date'}</div></div>
+    <div class="set-row" data-act="cloud-sync" role="button"><span>Sync now</span><span class="v">${syncBusy ? 'Syncing…' : lastTxt}</span></div>
+    <div class="set-row" data-act="cloud-out" role="button"><span>Sign out</span><span class="v">Keeps local data</span></div>`;
+}
+
+function cloudSheet() {
+  if (!cloudOn()) { toast('Cloud is not configured'); return; }
+  if (getSession()) return;
+  openSheet(`<div class="sheet-head">
+      <button type="button" class="sbtn" id="sx" aria-label="Close">${icon('close')}</button>
+      <div class="sheet-t">Cloud sync</div><span style="width:40px"></span>
+    </div>
+    <input id="cem" class="inp" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" aria-label="Email">
+    <input id="cpw" class="inp" type="password" autocomplete="current-password" placeholder="Password" style="margin-top:10px" aria-label="Password">
+    <button class="btn" id="signin">Sign in</button>
+    <button class="btn ghost" id="signup">Create account</button>
+    <p style="text-align:center;color:var(--muted);font-size:14px;margin:12px 0 0">New account is created instantly when email confirmation is off in Supabase.</p>`);
+  $('#sx').onclick = closeSheet;
+  const run = async mode => {
+    const email = $('#cem').value.trim();
+    const password = $('#cpw').value;
+    if (!email) { $('#cem').focus(); return; }
+    if (!password) { $('#cpw').focus(); return; }
+    const b = $(mode === 'signup' ? '#signup' : '#signin');
+    const label = b.textContent;
+    b.disabled = true; b.textContent = mode === 'signup' ? 'Creating…' : 'Signing in…';
+    try {
+      await passwordAuth(mode, email, password);
+      closeSheet();
+      render(false);
+      toast('Signed in');
+      syncNow(true);
+    } catch (e) {
+      b.disabled = false; b.textContent = label;
+      toast(e.message || 'Sign in failed');
+    }
+  };
+  $('#signin').onclick = () => run('signin');
+  $('#signup').onclick = () => run('signup');
+  $('#cem').focus();
 }
 
 /* ───────── actions ───────── */
@@ -764,12 +1051,15 @@ const ACT = {
   'cat-edit': el => categorySheet(el.dataset.id),
   'm-edit': el => methodSheet(el.dataset.m),
   'f-date': pickDate,
-  'f-cat': () => pickSheet('Category', [{ v: null, l: 'All categories' }, ...S.categories.map(c => ({ v: c.id, l: c.name }))], ui.f.cat, o => { ui.f.cat = o.v; render(true); }),
+  'f-cat': () => pickSheet('Category', [{ v: null, l: 'All categories' }, ...liveCats().map(c => ({ v: c.id, l: c.name }))], ui.f.cat, o => { ui.f.cat = o.v; render(true); }),
   'f-method': () => pickSheet('Payment method', [{ v: null, l: 'All methods' }, ...S.settings.paymentMethods.map(m => ({ v: m, l: m }))], ui.f.method, o => { ui.f.method = o.v; render(true); }),
   'export-json': exportJSON,
   'export-csv': exportCSV,
   import: () => { const f = $('#file'); if (f) f.click(); },
-  tone: () => { S.settings.tone = !S.settings.tone; save(); render(true); },
+  tone: () => { S.settings.tone = !S.settings.tone; touchSettings(); save(); render(true); },
+  cloud: cloudSheet,
+  'cloud-sync': () => syncNow(false),
+  'cloud-out': signOutCloud,
   demo, clear: clearAll
 };
 document.addEventListener('click', e => {
@@ -816,9 +1106,14 @@ $view.addEventListener('touchend', endSwipe);
 $view.addEventListener('touchcancel', endSwipe);
 
 /* ───────── boot ───────── */
-document.addEventListener('visibilitychange', () => { if (!document.hidden && $sheet.hidden) render(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !$sheet.hidden) return;
+  render(true);
+  if (signedIn()) syncNow(true);
+});
 
 render(false);
+if (signedIn()) setTimeout(() => syncNow(true), 1000);
 
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) {}
 
